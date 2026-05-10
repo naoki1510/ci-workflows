@@ -1,0 +1,143 @@
+name: Vite CI
+
+on:
+  workflow_call:
+    inputs:
+      pnpm-filter:
+        description: "pnpm --filter target (e.g. frontend). Empty for monolithic packages."
+        type: string
+        default: ""
+      pnpm-version:
+        type: string
+        default: "11"
+      node-version-file:
+        description: "Path to .node-version (relative to repo root)"
+        type: string
+        default: ".node-version"
+      lockfile-path:
+        description: "Path to pnpm-lock.yaml (relative to repo root)"
+        type: string
+        default: "pnpm-lock.yaml"
+      lint-script:
+        type: string
+        default: "lint"
+      format-check-script:
+        type: string
+        default: "format:check"
+      typecheck-script:
+        type: string
+        default: "typecheck"
+      test-script:
+        type: string
+        default: "test"
+      build-script:
+        type: string
+        default: "build"
+      skip-format-check:
+        type: boolean
+        default: false
+      skip-typecheck:
+        type: boolean
+        default: false
+      skip-test:
+        type: boolean
+        default: false
+      skip-build:
+        type: boolean
+        default: false
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          cache: pnpm
+          cache-dependency-path: ${{ inputs.lockfile-path }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.lint-script }}
+
+      - name: Prettier check
+        if: ${{ !inputs.skip-format-check }}
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.format-check-script }}
+
+  typecheck:
+    if: ${{ !inputs.skip-typecheck }}
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          cache: pnpm
+          cache-dependency-path: ${{ inputs.lockfile-path }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: tsc --noEmit
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.typecheck-script }}
+
+  test:
+    if: ${{ !inputs.skip-test }}
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          cache: pnpm
+          cache-dependency-path: ${{ inputs.lockfile-path }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Vitest
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.test-script }}
+
+  build:
+    if: ${{ !inputs.skip-build }}
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          cache: pnpm
+          cache-dependency-path: ${{ inputs.lockfile-path }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.build-script }}

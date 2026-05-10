@@ -1,0 +1,171 @@
+name: Rails CI
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Rails app directory (e.g. backend, server)"
+        type: string
+        required: true
+      ruby-version-file:
+        description: "Path to .ruby-version, relative to working-directory"
+        type: string
+        default: ".ruby-version"
+      db-engine:
+        description: "Database engine: postgres or mysql"
+        type: string
+        required: true
+      postgres-version:
+        type: string
+        default: "17"
+      mysql-version:
+        type: string
+        default: "8.4"
+      mysql-database:
+        description: "MySQL database name created by the service container"
+        type: string
+        default: "app_test"
+      test-prepare-cmd:
+        description: "Command to prepare the test database"
+        type: string
+        default: "bin/rails db:test:prepare"
+      test-cmd:
+        description: "Command to run tests"
+        type: string
+        default: "bundle exec rspec"
+      install-system-packages:
+        description: "Extra apt packages to install before bundling (space separated). Empty to skip."
+        type: string
+        default: ""
+      skip-rubocop:
+        type: boolean
+        default: false
+      skip-brakeman:
+        type: boolean
+        default: false
+
+jobs:
+  brakeman:
+    if: ${{ !inputs.skip-brakeman }}
+    name: Brakeman
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
+          bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Run Brakeman
+        run: bin/brakeman --no-pager || [ $? -eq 5 ]
+
+  rubocop:
+    if: ${{ !inputs.skip-rubocop }}
+    name: RuboCop
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
+          bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Run RuboCop
+        run: bin/rubocop -f github
+
+  rspec-postgres:
+    if: ${{ inputs.db-engine == 'postgres' }}
+    name: RSpec (PostgreSQL)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      postgres:
+        image: postgres:${{ inputs.postgres-version }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system packages
+        if: inputs.install-system-packages != ''
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ${{ inputs.install-system-packages }}
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
+          bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Prepare test DB
+        run: ${{ inputs.test-prepare-cmd }}
+
+      - name: Run tests
+        run: ${{ inputs.test-cmd }}
+
+  rspec-mysql:
+    if: ${{ inputs.db-engine == 'mysql' }}
+    name: RSpec (MySQL)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      mysql:
+        image: mysql:${{ inputs.mysql-version }}
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: ${{ inputs.mysql-database }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      RAILS_ENV: test
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_DATABASE: ${{ inputs.mysql-database }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system packages
+        if: inputs.install-system-packages != ''
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ${{ inputs.install-system-packages }}
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
+          bundler-cache: true
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Prepare test DB
+        run: ${{ inputs.test-prepare-cmd }}
+
+      - name: Run tests
+        run: ${{ inputs.test-cmd }}
