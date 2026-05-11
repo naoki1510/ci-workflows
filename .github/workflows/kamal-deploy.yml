@@ -26,9 +26,10 @@ jobs:
   deploy:
     name: Kamal deploy
     runs-on: ubuntu-latest
-    # Hoisted to job-level so the "Forward env vars" step's `if:` can read it
-    # (step-level `if:` cannot reference the `secrets` context). Only the
-    # boolean flag is exposed here; the secret body stays in the step's env.
+    # Hoisted to job-level so the "Forward env vars" step's `if:` can read it.
+    # Secrets cannot be referenced directly in a step's `if:`, so we expose
+    # only a derived boolean flag here; the secret body itself stays scoped
+    # to the step's `env:`.
     env:
       HAS_ENV_VARS: ${{ secrets.env-vars != '' }}
     defaults:
