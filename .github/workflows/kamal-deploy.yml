@@ -27,7 +27,7 @@ jobs:
     name: Kamal deploy
     runs-on: ubuntu-latest
     env:
-      ENV_VARS: ${{ secrets.env-vars }}
+      HAS_ENV_VARS: ${{ secrets.env-vars != '' && '1' || '' }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -59,8 +59,10 @@ jobs:
           fi
 
       - name: Forward env vars
-        if: ${{ env.ENV_VARS != '' }}
+        if: ${{ env.HAS_ENV_VARS != '' }}
         shell: bash
+        env:
+          ENV_VARS: ${{ secrets.env-vars }}
         run: |
           while IFS= read -r line; do
             [ -z "$line" ] && continue
