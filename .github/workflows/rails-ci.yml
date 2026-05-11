@@ -7,10 +7,6 @@ on:
         description: "Rails app directory (e.g. backend, server)"
         type: string
         required: true
-      ruby-version-file:
-        description: "Path to .ruby-version, relative to working-directory"
-        type: string
-        default: ".ruby-version"
       db-engine:
         description: "Database engine: postgres or mysql"
         type: string
@@ -57,7 +53,6 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
 
@@ -76,7 +71,6 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
 
@@ -117,7 +111,6 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
 
@@ -160,7 +153,6 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
 
