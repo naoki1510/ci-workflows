@@ -14,7 +14,7 @@ All workflows are pinned to `v1` for caller stability. Update the `v1` tag (forc
 
 ## Conventions enforced by these workflows
 
-- Ruby version is read from `.ruby-version` inside the working directory.
+- Ruby version is auto-detected by `ruby/setup-ruby` from `.ruby-version` / `.tool-versions` / `mise.toml` under the working directory.
 - Node version is read from `.node-version` at the repo root.
 - Frontend uses **pnpm** (no npm support — npm-based projects must migrate first).
 - Action versions: `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v4`, `ruby/setup-ruby@v1`, `docker/setup-buildx-action@v4`.
@@ -97,7 +97,7 @@ jobs:
         DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
 ```
 
-`env-vars` の各行は `KEY=value` 形式。`#` で始まる行と空行は無視される。caller 側の secrets を bash 補間で展開する形なので、reusable workflow 側で個別 secret を宣言する必要がない。
+`env-vars` の各行は `KEY=value` 形式。`#` で始まる行と空行は無視される。caller 側で `${{ secrets.* }}` を expression として展開する形なので、reusable workflow 側で個別 secret を宣言する必要がない。
 
 ## Versioning
 

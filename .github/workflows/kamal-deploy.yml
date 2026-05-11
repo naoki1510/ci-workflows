@@ -7,10 +7,6 @@ on:
         description: "Rails app directory containing config/deploy.yml"
         type: string
         required: true
-      ruby-version-file:
-        description: "Path to .ruby-version, relative to working-directory"
-        type: string
-        default: ".ruby-version"
       buildx:
         description: "Set up Docker buildx (recommended for multi-arch builds)"
         type: boolean
@@ -30,6 +26,12 @@ jobs:
   deploy:
     name: Kamal deploy
     runs-on: ubuntu-latest
+    # Hoisted to job-level so the "Forward env vars" step's `if:` can read it.
+    # Secrets cannot be referenced directly in a step's `if:`, so we expose
+    # only a derived boolean flag here; the secret body itself stays scoped
+    # to the step's `env:`.
+    env:
+      HAS_ENV_VARS: ${{ secrets.env-vars != '' }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -38,7 +40,6 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version-file: ${{ inputs.working-directory }}/${{ inputs.ruby-version-file }}
           bundler-cache: true
           working-directory: ${{ inputs.working-directory }}
 
@@ -62,7 +63,7 @@ jobs:
           fi
 
       - name: Forward env vars
-        if: ${{ secrets.env-vars != '' }}
+        if: ${{ env.HAS_ENV_VARS == 'true' }}
         shell: bash
         env:
           ENV_VARS: ${{ secrets.env-vars }}
