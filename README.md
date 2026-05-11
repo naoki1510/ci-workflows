@@ -97,7 +97,7 @@ jobs:
         DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
 ```
 
-`env-vars` の各行は `KEY=value` 形式。`#` で始まる行と空行は無視される。caller 側の secrets を bash 補間で展開する形なので、reusable workflow 側で個別 secret を宣言する必要がない。
+`env-vars` の各行は `KEY=value` 形式。`#` で始まる行と空行は無視される。caller 側で `${{ secrets.* }}` を expression として展開する形なので、reusable workflow 側で個別 secret を宣言する必要がない。
 
 ## Versioning
 
