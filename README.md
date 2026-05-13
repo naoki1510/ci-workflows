@@ -78,8 +78,6 @@ jobs:
 jobs:
   vite:
     uses: naoki1510/ci-workflows/.github/workflows/vite-ci.yml@v1
-    with:
-      skip-format-check: true   # Prettier がまだ未導入なら
 ```
 
 ### Kamal deploy

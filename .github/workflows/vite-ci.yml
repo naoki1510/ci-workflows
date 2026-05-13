@@ -33,18 +33,6 @@ on:
       build-script:
         type: string
         default: "build"
-      skip-format-check:
-        type: boolean
-        default: false
-      skip-typecheck:
-        type: boolean
-        default: false
-      skip-test:
-        type: boolean
-        default: false
-      skip-build:
-        type: boolean
-        default: false
 
 jobs:
   lint-and-format:
@@ -79,11 +67,10 @@ jobs:
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.lint-script }}
 
       - name: Prettier check
-        if: ${{ !inputs.skip-format-check && (steps.eslint.outcome == 'success' || steps.eslint.outcome == 'failure') }}
+        if: ${{ steps.eslint.outcome == 'success' || steps.eslint.outcome == 'failure' }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.format-check-script }}
 
   typecheck-test-build:
-    if: ${{ !inputs.skip-typecheck || !inputs.skip-test || !inputs.skip-build }}
     name: Typecheck, test & build
     runs-on: ubuntu-latest
     steps:
@@ -111,13 +98,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        if: ${{ !inputs.skip-typecheck }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.typecheck-script }}
 
       - name: Test
-        if: ${{ !inputs.skip-test }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.test-script }}
 
       - name: Build
-        if: ${{ !inputs.skip-build }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.build-script }}
