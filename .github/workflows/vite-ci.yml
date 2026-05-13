@@ -113,10 +113,10 @@ jobs:
         if: ${{ !inputs.skip-typecheck }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.typecheck-script }}
 
-      - name: Build
-        if: ${{ !inputs.skip-build }}
-        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.build-script }}
-
       - name: Test
         if: ${{ !inputs.skip-test }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.test-script }}
+
+      - name: Build
+        if: ${{ !inputs.skip-build }}
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.build-script }}
