@@ -81,9 +81,9 @@ jobs:
         if: ${{ !cancelled() && !inputs.skip-format-check }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.format-check-script }}
 
-  typecheck-build-test:
-    if: ${{ !inputs.skip-typecheck || !inputs.skip-build || !inputs.skip-test }}
-    name: Typecheck, build & test
+  typecheck-test-build:
+    if: ${{ !inputs.skip-typecheck || !inputs.skip-test || !inputs.skip-build }}
+    name: Typecheck, test & build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
