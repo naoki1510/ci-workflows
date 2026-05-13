@@ -68,7 +68,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -96,7 +96,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -132,7 +132,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -164,7 +164,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -196,7 +196,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
 
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
