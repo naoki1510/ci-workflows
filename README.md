@@ -19,6 +19,16 @@ All workflows are pinned to `v1` for caller stability. Update the `v1` tag (forc
 - Frontend uses **pnpm** (no npm support — npm-based projects must migrate first).
 - Action versions: `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v4`, `ruby/setup-ruby@v1`, `docker/setup-buildx-action@v4`.
 
+## Recommended caller settings
+
+caller 側で `concurrency` を設定すると、同じブランチへの連続 push で古い run が自動キャンセルされ、CI 時間とコストを削減できる。
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
 ## Usage
 
 ### Rails CI (PostgreSQL example)

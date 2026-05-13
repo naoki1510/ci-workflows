@@ -47,8 +47,8 @@ on:
         default: false
 
 jobs:
-  lint:
-    name: Lint
+  install:
+    name: Install dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -63,7 +63,43 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ inputs.lockfile-path }}
 
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: "**/node_modules"
+          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+
       - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+
+  lint:
+    name: Lint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          cache: pnpm
+          cache-dependency-path: ${{ inputs.lockfile-path }}
+
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: "**/node_modules"
+          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: ESLint
@@ -76,6 +112,7 @@ jobs:
   typecheck:
     if: ${{ !inputs.skip-typecheck }}
     name: Typecheck
+    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -90,7 +127,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ inputs.lockfile-path }}
 
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: "**/node_modules"
+          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+
       - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: tsc --noEmit
@@ -99,6 +144,7 @@ jobs:
   test:
     if: ${{ !inputs.skip-test }}
     name: Test
+    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -113,7 +159,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ inputs.lockfile-path }}
 
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: "**/node_modules"
+          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+
       - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Vitest
@@ -122,6 +176,7 @@ jobs:
   build:
     if: ${{ !inputs.skip-build }}
     name: Build
+    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -136,7 +191,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ inputs.lockfile-path }}
 
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: "**/node_modules"
+          key: node-modules-${{ runner.os }}-${{ hashFiles(inputs.lockfile-path) }}
+
       - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build
