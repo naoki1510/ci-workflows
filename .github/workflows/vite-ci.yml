@@ -75,10 +75,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: ESLint
+        id: eslint
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.lint-script }}
 
       - name: Prettier check
-        if: ${{ !cancelled() && !inputs.skip-format-check }}
+        if: ${{ !inputs.skip-format-check && (steps.eslint.outcome == 'success' || steps.eslint.outcome == 'failure') }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.format-check-script }}
 
   typecheck-test-build:
