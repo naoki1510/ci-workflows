@@ -33,50 +33,10 @@ on:
       build-script:
         type: string
         default: "build"
-      skip-format-check:
-        type: boolean
-        default: false
-      skip-typecheck:
-        type: boolean
-        default: false
-      skip-test:
-        type: boolean
-        default: false
-      skip-build:
-        type: boolean
-        default: false
 
 jobs:
-  install:
-    name: Install dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ inputs.pnpm-version }}
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: ${{ inputs.node-version-file }}
-          cache: pnpm
-          cache-dependency-path: ${{ inputs.lockfile-path }}
-
-      - name: Cache node_modules
-        id: node-modules-cache
-        uses: actions/cache@v4
-        with:
-          path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
-
-      - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
-
-  lint:
-    name: Lint
-    needs: install
+  lint-and-format:
+    name: Lint & format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -103,16 +63,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: ESLint
+        id: eslint
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.lint-script }}
 
       - name: Prettier check
-        if: ${{ !inputs.skip-format-check }}
+        if: ${{ steps.eslint.outcome == 'success' || steps.eslint.outcome == 'failure' }}
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.format-check-script }}
 
-  typecheck:
-    if: ${{ !inputs.skip-typecheck }}
-    name: Typecheck
-    needs: install
+  typecheck-test-build:
+    name: Typecheck, test & build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -138,69 +97,11 @@ jobs:
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: tsc --noEmit
+      - name: Typecheck
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.typecheck-script }}
 
-  test:
-    if: ${{ !inputs.skip-test }}
-    name: Test
-    needs: install
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ inputs.pnpm-version }}
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: ${{ inputs.node-version-file }}
-          cache: pnpm
-          cache-dependency-path: ${{ inputs.lockfile-path }}
-
-      - name: Cache node_modules
-        id: node-modules-cache
-        uses: actions/cache@v4
-        with:
-          path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
-
-      - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Vitest
+      - name: Test
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.test-script }}
-
-  build:
-    if: ${{ !inputs.skip-build }}
-    name: Build
-    needs: install
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ inputs.pnpm-version }}
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: ${{ inputs.node-version-file }}
-          cache: pnpm
-          cache-dependency-path: ${{ inputs.lockfile-path }}
-
-      - name: Cache node_modules
-        id: node-modules-cache
-        uses: actions/cache@v4
-        with:
-          path: "**/node_modules"
-          key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
-
-      - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.build-script }}
