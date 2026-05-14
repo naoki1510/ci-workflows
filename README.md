@@ -6,7 +6,7 @@ Reusable GitHub Actions workflows shared across naoki1510 projects.
 
 | Workflow | Purpose |
 |---|---|
-| [`rails-ci.yml`](.github/workflows/rails-ci.yml) | Brakeman + RuboCop + RSpec for Rails apps. Switches between PostgreSQL and MySQL service containers via input. |
+| [`rails-ci.yml`](.github/workflows/rails-ci.yml) | RuboCop + Brakeman (lint & security) and RSpec (test) for Rails apps in two jobs. Switches between PostgreSQL and MySQL service containers via input. |
 | [`vite-ci.yml`](.github/workflows/vite-ci.yml) | ESLint + Prettier + tsc + Vitest + Vite build for pnpm-managed TypeScript projects. |
 | [`kamal-deploy.yml`](.github/workflows/kamal-deploy.yml) | Deploy a Rails app to a VPS via Kamal. SSH key + arbitrary env vars are passed as secrets. |
 
