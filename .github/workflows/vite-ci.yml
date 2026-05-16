@@ -38,6 +38,7 @@ jobs:
   lint-and-format:
     name: Lint & format
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
 
@@ -73,6 +74,7 @@ jobs:
   typecheck-test-build:
     name: Typecheck, test & build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 
