@@ -32,8 +32,8 @@ jobs:
         id: rubocop
         run: bin/rubocop -f github
 
+      # rubocop が fail でも brakeman は走らせて両方の結果を見たい (cancel は除く)
       - name: Brakeman
-        # rubocop が fail でも brakeman は走らせて両方の結果を見たい
-        if: ${{ steps.rubocop.outcome == 'success' || steps.rubocop.outcome == 'failure' }}
+        if: ${{ !cancelled() }}
         # brakeman exit 5 = warnings あるが errors なし。CI を fail させないため許容
         run: bin/brakeman --no-pager || [ $? -eq 5 ]

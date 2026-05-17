@@ -56,6 +56,8 @@ caller 側で「rspec の後ろに独自 step を足す」のような自由な�
 - Node version is read from `.node-version` at the repo root.
 - Frontend uses **pnpm** (no npm support — npm-based projects must migrate first).
 - Action versions: `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v4`, `ruby/setup-ruby@v1`, `docker/setup-buildx-action@v4`.
+- `rails-test.yml` / `check-generated-code.yml` の service container は `db-engine` に応じて未使用側の image が空文字列になる。GitHub Actions runner は空 image のコンテナをスキップする (undocumented だが実動作で確認済み)。将来 runner の挙動が変わった場合は db-engine 別の workflow 分割を検討する。
+- `rails-test.yml` / `check-generated-code.yml` の `*-cmd` 系 input (`test-cmd`, `test-prepare-cmd`, `swaggerize-cmd` 等) はシェルコマンド文字列を受け、env 経由で `eval` する。caller は信頼できる前提だが、untrusted な caller を想定する場合はコマンド固定 + 引数 input への refactor が必要。
 
 ## Recommended caller settings
 

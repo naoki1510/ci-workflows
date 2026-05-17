@@ -82,8 +82,17 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
           install-system-packages: ${{ inputs.install-system-packages }}
 
+      # caller 由来の input を `run:` に直接展開すると workflow injection の入り口に
+      # なるため (caller が ';' 等を仕込むと任意コード実行)、env 経由で値を渡して
+      # bash 変数として参照する。任意コマンドラインを許す柔軟性を維持するため
+      # `eval` で評価する (caller は trusted、env で渡せば YAML テンプレ展開での
+      # bypass は防げる)。
       - name: Prepare test DB
-        run: ${{ inputs.test-prepare-cmd }}
+        env:
+          TEST_PREPARE_CMD: ${{ inputs.test-prepare-cmd }}
+        run: eval "$TEST_PREPARE_CMD"
 
       - name: Run tests
-        run: ${{ inputs.test-cmd }}
+        env:
+          TEST_CMD: ${{ inputs.test-cmd }}
+        run: eval "$TEST_CMD"

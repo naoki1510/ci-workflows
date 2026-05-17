@@ -42,11 +42,37 @@ jobs:
           node-version-file: ${{ inputs.node-version-file }}
           lockfile-path: ${{ inputs.lockfile-path }}
 
+      # caller の input は env 経由でシェル変数として参照する (workflow injection 対策、
+      # `vite-lint.yml` と同じ運用)。pnpm の引数として渡されるので shell 評価を経由しない。
       - name: Typecheck
-        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.typecheck-script }}
+        env:
+          PNPM_FILTER: ${{ inputs.pnpm-filter }}
+          TYPECHECK_SCRIPT: ${{ inputs.typecheck-script }}
+        run: |
+          if [ -n "$PNPM_FILTER" ]; then
+            pnpm --filter "$PNPM_FILTER" run "$TYPECHECK_SCRIPT"
+          else
+            pnpm run "$TYPECHECK_SCRIPT"
+          fi
 
       - name: Test
-        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.test-script }}
+        env:
+          PNPM_FILTER: ${{ inputs.pnpm-filter }}
+          TEST_SCRIPT: ${{ inputs.test-script }}
+        run: |
+          if [ -n "$PNPM_FILTER" ]; then
+            pnpm --filter "$PNPM_FILTER" run "$TEST_SCRIPT"
+          else
+            pnpm run "$TEST_SCRIPT"
+          fi
 
       - name: Build
-        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.build-script }}
+        env:
+          PNPM_FILTER: ${{ inputs.pnpm-filter }}
+          BUILD_SCRIPT: ${{ inputs.build-script }}
+        run: |
+          if [ -n "$PNPM_FILTER" ]; then
+            pnpm --filter "$PNPM_FILTER" run "$BUILD_SCRIPT"
+          else
+            pnpm run "$BUILD_SCRIPT"
+          fi

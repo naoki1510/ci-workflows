@@ -115,13 +115,19 @@ jobs:
           working-directory: ${{ inputs.rails-working-directory }}
           install-system-packages: ${{ inputs.install-system-packages }}
 
+      # caller 由来のコマンド文字列を `run:` に直接展開せず env 経由で eval する
+      # (workflow injection 対策、`rails-test.yml` と同じ運用)。
       - name: Prepare test DB
         working-directory: ${{ inputs.rails-working-directory }}
-        run: ${{ inputs.test-prepare-cmd }}
+        env:
+          TEST_PREPARE_CMD: ${{ inputs.test-prepare-cmd }}
+        run: eval "$TEST_PREPARE_CMD"
 
       - name: Regenerate OpenAPI spec
         working-directory: ${{ inputs.rails-working-directory }}
-        run: ${{ inputs.swaggerize-cmd }}
+        env:
+          SWAGGERIZE_CMD: ${{ inputs.swaggerize-cmd }}
+        run: eval "$SWAGGERIZE_CMD"
 
       - name: Check OpenAPI spec is up to date
         env:
@@ -140,7 +146,15 @@ jobs:
           lockfile-path: ${{ inputs.lockfile-path }}
 
       - name: Regenerate frontend API client
-        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.codegen-script }}
+        env:
+          PNPM_FILTER: ${{ inputs.pnpm-filter }}
+          CODEGEN_SCRIPT: ${{ inputs.codegen-script }}
+        run: |
+          if [ -n "$PNPM_FILTER" ]; then
+            pnpm --filter "$PNPM_FILTER" run "$CODEGEN_SCRIPT"
+          else
+            pnpm run "$CODEGEN_SCRIPT"
+          fi
 
       - name: Check generated code is up to date
         env:

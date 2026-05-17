@@ -39,10 +39,29 @@ jobs:
           node-version-file: ${{ inputs.node-version-file }}
           lockfile-path: ${{ inputs.lockfile-path }}
 
+      # caller の input を `run:` に直接展開せず env 経由でシェル変数として参照する
+      # (workflow injection 対策)。値は pnpm の引数として渡され、shell の評価は経由しない
+      # ため metacharacter が混入しても安全。
       - name: ESLint
         id: eslint
-        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.lint-script }}
+        env:
+          PNPM_FILTER: ${{ inputs.pnpm-filter }}
+          LINT_SCRIPT: ${{ inputs.lint-script }}
+        run: |
+          if [ -n "$PNPM_FILTER" ]; then
+            pnpm --filter "$PNPM_FILTER" run "$LINT_SCRIPT"
+          else
+            pnpm run "$LINT_SCRIPT"
+          fi
 
       - name: Prettier check
-        if: ${{ steps.eslint.outcome == 'success' || steps.eslint.outcome == 'failure' }}
-        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.format-check-script }}
+        if: ${{ !cancelled() }}
+        env:
+          PNPM_FILTER: ${{ inputs.pnpm-filter }}
+          FORMAT_CHECK_SCRIPT: ${{ inputs.format-check-script }}
+        run: |
+          if [ -n "$PNPM_FILTER" ]; then
+            pnpm --filter "$PNPM_FILTER" run "$FORMAT_CHECK_SCRIPT"
+          else
+            pnpm run "$FORMAT_CHECK_SCRIPT"
+          fi

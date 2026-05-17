@@ -24,8 +24,11 @@ runs:
         EXTRA_PACKAGES: ${{ inputs.install-system-packages }}
       run: |
         sudo apt-get update
-        # shellcheck disable=SC2086
-        sudo apt-get install --no-install-recommends -y $EXTRA_PACKAGES
+        # space-separated 文字列を配列化してから apt-get に渡す。
+        # `$EXTRA_PACKAGES` のクォートなし展開を避け、glob 展開・word-splitting の
+        # 意図しない挙動を防ぐ (例: パッケージ名に `*` が混入した場合の事故予防)。
+        read -ra PACKAGES <<< "$EXTRA_PACKAGES"
+        sudo apt-get install --no-install-recommends -y "${PACKAGES[@]}"
 
     - uses: ruby/setup-ruby@v1
       with:
