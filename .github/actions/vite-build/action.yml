@@ -1,0 +1,61 @@
+name: "Vite Build"
+description: >-
+  Run typecheck, unit tests, and production build in sequence.
+  Caller must run `setup-pnpm-node` first.
+
+inputs:
+  pnpm-filter:
+    description: "pnpm --filter target. Empty for monolithic packages."
+    required: false
+    default: ""
+  typecheck-script:
+    description: "pnpm script name for typecheck"
+    required: false
+    default: "typecheck"
+  test-script:
+    description: "pnpm script name for unit tests"
+    required: false
+    default: "test"
+  build-script:
+    description: "pnpm script name for production build"
+    required: false
+    default: "build"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Typecheck
+      shell: bash
+      env:
+        PNPM_FILTER: ${{ inputs.pnpm-filter }}
+        TYPECHECK_SCRIPT: ${{ inputs.typecheck-script }}
+      run: |
+        if [ -n "$PNPM_FILTER" ]; then
+          pnpm --filter "$PNPM_FILTER" run "$TYPECHECK_SCRIPT"
+        else
+          pnpm run "$TYPECHECK_SCRIPT"
+        fi
+
+    - name: Test
+      shell: bash
+      env:
+        PNPM_FILTER: ${{ inputs.pnpm-filter }}
+        TEST_SCRIPT: ${{ inputs.test-script }}
+      run: |
+        if [ -n "$PNPM_FILTER" ]; then
+          pnpm --filter "$PNPM_FILTER" run "$TEST_SCRIPT"
+        else
+          pnpm run "$TEST_SCRIPT"
+        fi
+
+    - name: Build
+      shell: bash
+      env:
+        PNPM_FILTER: ${{ inputs.pnpm-filter }}
+        BUILD_SCRIPT: ${{ inputs.build-script }}
+      run: |
+        if [ -n "$PNPM_FILTER" ]; then
+          pnpm --filter "$PNPM_FILTER" run "$BUILD_SCRIPT"
+        else
+          pnpm run "$BUILD_SCRIPT"
+        fi

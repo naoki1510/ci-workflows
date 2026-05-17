@@ -1,0 +1,37 @@
+name: "Check swagger.yaml is up to date"
+description: >-
+  Regenerate OpenAPI spec via rswag and fail if the result differs from committed `swagger-path`.
+  Caller must run `setup-rails` + DB prep first (`rake rswag:specs:swaggerize` boots Rails).
+
+inputs:
+  working-directory:
+    description: "Rails app directory where the rake task runs"
+    required: false
+    default: "."
+  swaggerize-cmd:
+    description: "Shell command string evaluated with `eval` to regenerate swagger.yaml. Caller must be trusted."
+    required: false
+    default: "bundle exec rake rswag:specs:swaggerize"
+  swagger-path:
+    description: "Path to the regenerated swagger.yaml from repo root. Used as the diff target."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Regenerate OpenAPI spec
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SWAGGERIZE_CMD: ${{ inputs.swaggerize-cmd }}
+      run: eval "$SWAGGERIZE_CMD"
+
+    - name: Check swagger.yaml is up to date
+      shell: bash
+      env:
+        SWAGGER_PATH: ${{ inputs.swagger-path }}
+      run: |
+        if ! git diff --exit-code "$SWAGGER_PATH"; then
+          echo "::error::$SWAGGER_PATH が最新ではありません。手元で再生成してコミットしてください。"
+          exit 1
+        fi

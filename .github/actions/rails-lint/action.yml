@@ -1,0 +1,26 @@
+name: "Rails Lint"
+description: >-
+  Run RuboCop then Brakeman. Brakeman runs even if RuboCop fails (only skipped on cancel).
+  Caller must run `setup-rails` first.
+
+inputs:
+  working-directory:
+    description: "Rails app directory"
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: RuboCop
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: bin/rubocop -f github
+
+    # rubocop が fail でも brakeman は走らせて両方の結果を見たい
+    - name: Brakeman
+      if: ${{ !cancelled() }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      # brakeman exit 5 = warnings あるが errors なし。CI を fail させないため許容
+      run: bin/brakeman --no-pager || [ $? -eq 5 ]

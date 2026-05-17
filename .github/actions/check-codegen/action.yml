@@ -1,0 +1,42 @@
+name: "Check generated client code is up to date"
+description: >-
+  Regenerate the frontend API client (e.g. via @hey-api/openapi-ts) and fail if the result differs from `generated-code-path`.
+  Caller must run `setup-pnpm-node` first.
+
+inputs:
+  pnpm-filter:
+    description: "pnpm --filter target. Empty for monolithic packages."
+    required: false
+    default: ""
+  codegen-script:
+    description: "pnpm script name for regenerating the client. Passed as argument, not eval'd."
+    required: false
+    default: "codegen"
+  generated-code-path:
+    description: "Path to generated code from repo root. Directory or file, used as the diff target."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Regenerate frontend API client
+      shell: bash
+      env:
+        PNPM_FILTER: ${{ inputs.pnpm-filter }}
+        CODEGEN_SCRIPT: ${{ inputs.codegen-script }}
+      run: |
+        if [ -n "$PNPM_FILTER" ]; then
+          pnpm --filter "$PNPM_FILTER" run "$CODEGEN_SCRIPT"
+        else
+          pnpm run "$CODEGEN_SCRIPT"
+        fi
+
+    - name: Check generated code is up to date
+      shell: bash
+      env:
+        GENERATED_CODE_PATH: ${{ inputs.generated-code-path }}
+      run: |
+        if ! git diff --exit-code "$GENERATED_CODE_PATH"; then
+          echo "::error::$GENERATED_CODE_PATH が最新ではありません。手元で再生成してコミットしてください。"
+          exit 1
+        fi
