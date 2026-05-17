@@ -1,0 +1,52 @@
+name: Vite Build
+
+on:
+  workflow_call:
+    inputs:
+      pnpm-filter:
+        description: "pnpm --filter target (e.g. frontend). Empty for monolithic packages."
+        type: string
+        default: ""
+      pnpm-version:
+        type: string
+        default: "11"
+      node-version-file:
+        description: "Path to .node-version (relative to repo root)"
+        type: string
+        default: ".node-version"
+      lockfile-path:
+        description: "Path to pnpm-lock.yaml (relative to repo root)"
+        type: string
+        default: "pnpm-lock.yaml"
+      typecheck-script:
+        type: string
+        default: "typecheck"
+      test-script:
+        type: string
+        default: "test"
+      build-script:
+        type: string
+        default: "build"
+
+jobs:
+  typecheck-test-build:
+    name: Typecheck, test & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: naoki1510/ci-workflows/.github/actions/setup-pnpm-node@v2
+        with:
+          pnpm-version: ${{ inputs.pnpm-version }}
+          node-version-file: ${{ inputs.node-version-file }}
+          lockfile-path: ${{ inputs.lockfile-path }}
+
+      - name: Typecheck
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.typecheck-script }}
+
+      - name: Test
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.test-script }}
+
+      - name: Build
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.build-script }}

@@ -1,16 +1,54 @@
 # ci-workflows
 
-Reusable GitHub Actions workflows shared across naoki1510 projects.
+Reusable GitHub Actions workflows + composite actions shared across naoki1510 projects.
 
-## Available workflows
+## Two layers of reuse
+
+| Layer | Where | Use case |
+|---|---|---|
+| **Composite actions** (`.github/actions/`) | run in the **caller's** runner | setup を共有しつつ caller 側 job に自由に step を足したい時 |
+| **Reusable workflows** (`.github/workflows/`) | each call spins up its **own** runner | 完成された job を丸ごと取り込みたい時 (lint / test / build 等) |
+
+caller 側で「rspec の後ろに独自 step を足す」のような自由な組み合わせが必要なら **composite action**、`uses:` 一発で job 1 個分のお膳立てが欲しいなら **reusable workflow** を使う。
+
+## Versioning
+
+- **`v2`** (current) — job 単位の reusable workflow に分割 + composite action でセットアップ共通化。後述。
+- **`v1`** (legacy) — `rails-ci.yml` / `vite-ci.yml` で 2 job バンドル。`v2` の `rails-lint` + `rails-test` 等に分割された。caller の移行が完了するまで `v1` も維持する。
+- `v1` の互換更新は force-push で `v1` を更新する。breaking change は次のメジャーへ bump。
+- 厳密にピン留めするなら commit SHA を使う。
+
+## Available composite actions (v2)
+
+| Action | Purpose |
+|---|---|
+| [`actions/setup-rails`](.github/actions/setup-rails/action.yml) | System packages (optional) + `ruby/setup-ruby` (bundler-cache 有効)。caller は事前に `actions/checkout` する必要あり。DB は含まない (caller の job 側で service container を立てる) |
+| [`actions/setup-pnpm-node`](.github/actions/setup-pnpm-node/action.yml) | `pnpm/action-setup` + `actions/setup-node` (pnpm キャッシュ) + node_modules キャッシュ + `pnpm install --frozen-lockfile` |
+
+## Available reusable workflows
+
+### v2 (job 単位)
+
+| Workflow | Job 構成 |
+|---|---|
+| [`rails-lint.yml`](.github/workflows/rails-lint.yml) | RuboCop + Brakeman |
+| [`rails-test.yml`](.github/workflows/rails-test.yml) | RSpec (postgres / mysql service container 切替) |
+| [`vite-lint.yml`](.github/workflows/vite-lint.yml) | ESLint + Prettier |
+| [`vite-build.yml`](.github/workflows/vite-build.yml) | Typecheck + Vitest + Vite build |
+| [`check-generated-code.yml`](.github/workflows/check-generated-code.yml) | rswag swaggerize + hey-api codegen の最新性検証 (rails + rspec + @hey-api/openapi-ts 専用) |
+
+### v1 (legacy, 2 job バンドル)
 
 | Workflow | Purpose |
 |---|---|
-| [`rails-ci.yml`](.github/workflows/rails-ci.yml) | RuboCop + Brakeman (lint & security) and RSpec (test) for Rails apps in two jobs. Switches between PostgreSQL and MySQL service containers via input. |
-| [`vite-ci.yml`](.github/workflows/vite-ci.yml) | ESLint + Prettier + tsc + Vitest + Vite build for pnpm-managed TypeScript projects. |
-| [`kamal-deploy.yml`](.github/workflows/kamal-deploy.yml) | Deploy a Rails app to a VPS via Kamal. SSH key + arbitrary env vars are passed as secrets. |
+| [`rails-ci.yml`](.github/workflows/rails-ci.yml) | `rails-lint` + `rails-test` を 1 workflow に同梱 |
+| [`vite-ci.yml`](.github/workflows/vite-ci.yml) | `vite-lint` + `vite-build` を 1 workflow に同梱 |
 
-All workflows are pinned to `v1` for caller stability. Update the `v1` tag (force-push) for backward-compatible changes; bump to `v2` for breaking changes.
+### 共通
+
+| Workflow | Purpose |
+|---|---|
+| [`kamal-deploy.yml`](.github/workflows/kamal-deploy.yml) | Deploy a Rails app to a VPS via Kamal |
 
 ## Conventions enforced by these workflows
 
@@ -29,15 +67,104 @@ concurrency:
   cancel-in-progress: true
 ```
 
-## Usage
+## Usage (v2)
 
-### Rails CI (PostgreSQL example)
+### Rails (lint + test を別 job として呼ぶ)
 
 ```yaml
 # .github/workflows/ci.yml
 name: CI
 on: [pull_request]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rails-lint:
+    uses: naoki1510/ci-workflows/.github/workflows/rails-lint.yml@v2
+    with:
+      working-directory: backend
+      install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
+
+  rails-test:
+    uses: naoki1510/ci-workflows/.github/workflows/rails-test.yml@v2
+    with:
+      working-directory: backend
+      db-engine: postgres
+      install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
+```
+
+### Vite (lint + build を別 job として呼ぶ)
+
+```yaml
+jobs:
+  vite-lint:
+    uses: naoki1510/ci-workflows/.github/workflows/vite-lint.yml@v2
+    with:
+      pnpm-filter: frontend
+
+  vite-build:
+    uses: naoki1510/ci-workflows/.github/workflows/vite-build.yml@v2
+    with:
+      pnpm-filter: frontend
+```
+
+### Check generated code (rails + rspec + hey-api 専用)
+
+`rswag` で `swagger.yaml` を生成し、`@hey-api/openapi-ts` で TypeScript クライアントを生成しているリポジトリ向け。1 job 内で連続実行することで、ruby setup と pnpm setup の重複を避けて runner cost を抑える。
+
+```yaml
+jobs:
+  check-generated-code:
+    uses: naoki1510/ci-workflows/.github/workflows/check-generated-code.yml@v2
+    with:
+      rails-working-directory: backend
+      install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
+      db-engine: postgres
+      swagger-path: backend/swagger/v1/swagger.yaml
+      pnpm-filter: frontend
+      generated-code-path: frontend/src/lib/api/generated/
+```
+
+### 独自 job で composite action を使う (setup を共有して step を自由に追加)
+
+reusable workflow では足りない処理を caller の独自 job で書くケース。`setup-rails` / `setup-pnpm-node` を呼べば既存 reusable workflow と同じ setup を使い回せる。
+
+```yaml
+jobs:
+  custom-rails-task:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=5
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v6
+      - uses: naoki1510/ci-workflows/.github/actions/setup-rails@v2
+        with:
+          working-directory: backend
+          install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
+      - run: bin/rails db:test:prepare
+      - run: bundle exec rake my:custom:task
+```
+
+## Usage (v1, legacy)
+
+### Rails CI (PostgreSQL example)
+
+```yaml
 jobs:
   rails:
     uses: naoki1510/ci-workflows/.github/workflows/rails-ci.yml@v1
@@ -62,7 +189,7 @@ jobs:
         bundle exec rails db:schema:load
 ```
 
-### Vite CI (pnpm workspaces, filtered)
+### Vite CI
 
 ```yaml
 jobs:
@@ -70,14 +197,6 @@ jobs:
     uses: naoki1510/ci-workflows/.github/workflows/vite-ci.yml@v1
     with:
       pnpm-filter: frontend
-```
-
-### Vite CI (single-package repo)
-
-```yaml
-jobs:
-  vite:
-    uses: naoki1510/ci-workflows/.github/workflows/vite-ci.yml@v1
 ```
 
 ### Kamal deploy
@@ -106,9 +225,3 @@ jobs:
 ```
 
 `env-vars` の各行は `KEY=value` 形式。`#` で始まる行と空行は無視される。caller 側で `${{ secrets.* }}` を expression として展開する形なので、reusable workflow 側で個別 secret を宣言する必要がない。
-
-## Versioning
-
-- `v1` tag is the stable line. Backward-compatible changes update `v1` (force-push the tag).
-- Breaking changes bump to `v2`, leaving `v1` callers untouched.
-- For exact pinning, use a commit SHA instead of `v1`.

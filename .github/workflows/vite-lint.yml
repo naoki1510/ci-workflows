@@ -1,0 +1,48 @@
+name: Vite Lint
+
+on:
+  workflow_call:
+    inputs:
+      pnpm-filter:
+        description: "pnpm --filter target (e.g. frontend). Empty for monolithic packages."
+        type: string
+        default: ""
+      pnpm-version:
+        type: string
+        default: "11"
+      node-version-file:
+        description: "Path to .node-version (relative to repo root)"
+        type: string
+        default: ".node-version"
+      lockfile-path:
+        description: "Path to pnpm-lock.yaml (relative to repo root)"
+        type: string
+        default: "pnpm-lock.yaml"
+      lint-script:
+        type: string
+        default: "lint"
+      format-check-script:
+        type: string
+        default: "format:check"
+
+jobs:
+  lint-and-format:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: naoki1510/ci-workflows/.github/actions/setup-pnpm-node@v2
+        with:
+          pnpm-version: ${{ inputs.pnpm-version }}
+          node-version-file: ${{ inputs.node-version-file }}
+          lockfile-path: ${{ inputs.lockfile-path }}
+
+      - name: ESLint
+        id: eslint
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.lint-script }}
+
+      - name: Prettier check
+        if: ${{ steps.eslint.outcome == 'success' || steps.eslint.outcome == 'failure' }}
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.format-check-script }}

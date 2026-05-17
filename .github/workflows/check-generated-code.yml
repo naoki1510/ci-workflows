@@ -1,0 +1,152 @@
+name: Check generated code
+
+# rswag (Rails の OpenAPI 仕様生成) + @hey-api/openapi-ts (TypeScript クライアント生成)
+# を使うリポジトリで「生成物が最新であること」を CI で検証する専用 reusable workflow。
+#
+# 1 つの job で rails setup → swagger.yaml 再生成 → diff チェック → pnpm setup →
+# frontend codegen → diff チェック までを連続実行する。job を分けないのは setup
+# (ruby / pnpm) を 1 runner 内で完結させ、独立 job 化に伴うセットアップ重複を
+# 避けるため。
+
+on:
+  workflow_call:
+    inputs:
+      # --- backend (Rails + rswag) ---
+      rails-working-directory:
+        description: "Rails app directory (e.g. backend)"
+        type: string
+        required: true
+      install-system-packages:
+        description: "Extra apt packages for bundling (space separated)"
+        type: string
+        default: ""
+      db-engine:
+        description: "Database engine: postgres or mysql"
+        type: string
+        required: true
+      postgres-version:
+        type: string
+        default: "17"
+      mysql-version:
+        type: string
+        default: "8.4"
+      mysql-database:
+        type: string
+        default: "app_test"
+      test-prepare-cmd:
+        description: "Test DB prepare command (swaggerize は Rails boot で DB を必要とする)"
+        type: string
+        default: "bin/rails db:test:prepare"
+      swaggerize-cmd:
+        description: "OpenAPI 仕様再生成コマンド (rails-working-directory 配下で実行)"
+        type: string
+        default: "bundle exec rake rswag:specs:swaggerize"
+      swagger-path:
+        description: "再生成された swagger.yaml の repo root からの相対パス (diff 対象)"
+        type: string
+        required: true
+
+      # --- frontend (pnpm + @hey-api/openapi-ts) ---
+      pnpm-filter:
+        description: "pnpm --filter target (e.g. frontend). Empty for monolithic packages."
+        type: string
+        default: ""
+      pnpm-version:
+        type: string
+        default: "11"
+      node-version-file:
+        type: string
+        default: ".node-version"
+      lockfile-path:
+        type: string
+        default: "pnpm-lock.yaml"
+      codegen-script:
+        description: "frontend クライアント再生成 script 名"
+        type: string
+        default: "codegen"
+      generated-code-path:
+        description: "生成コードの repo root からの相対パス (diff 対象、ディレクトリ可)"
+        type: string
+        required: true
+
+jobs:
+  check:
+    name: Check generated code
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: ${{ inputs.db-engine == 'postgres' && format('postgres:{0}', inputs.postgres-version) || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      mysql:
+        image: ${{ inputs.db-engine == 'mysql' && format('mysql:{0}', inputs.mysql-version) || '' }}
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: ${{ inputs.mysql-database }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_DATABASE: ${{ inputs.mysql-database }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # --- backend: swagger.yaml ---
+      - uses: naoki1510/ci-workflows/.github/actions/setup-rails@v2
+        with:
+          working-directory: ${{ inputs.rails-working-directory }}
+          install-system-packages: ${{ inputs.install-system-packages }}
+
+      - name: Prepare test DB
+        working-directory: ${{ inputs.rails-working-directory }}
+        run: ${{ inputs.test-prepare-cmd }}
+
+      - name: Regenerate OpenAPI spec
+        working-directory: ${{ inputs.rails-working-directory }}
+        run: ${{ inputs.swaggerize-cmd }}
+
+      - name: Check OpenAPI spec is up to date
+        env:
+          SWAGGER_PATH: ${{ inputs.swagger-path }}
+        run: |
+          if ! git diff --exit-code "$SWAGGER_PATH"; then
+            echo "::error::$SWAGGER_PATH が最新ではありません。手元で再生成してコミットしてください。"
+            exit 1
+          fi
+
+      # --- frontend: hey-api codegen ---
+      - uses: naoki1510/ci-workflows/.github/actions/setup-pnpm-node@v2
+        with:
+          pnpm-version: ${{ inputs.pnpm-version }}
+          node-version-file: ${{ inputs.node-version-file }}
+          lockfile-path: ${{ inputs.lockfile-path }}
+
+      - name: Regenerate frontend API client
+        run: pnpm ${{ inputs.pnpm-filter && format('--filter {0} ', inputs.pnpm-filter) || '' }}run ${{ inputs.codegen-script }}
+
+      - name: Check generated code is up to date
+        env:
+          GENERATED_CODE_PATH: ${{ inputs.generated-code-path }}
+        run: |
+          if ! git diff --exit-code "$GENERATED_CODE_PATH"; then
+            echo "::error::$GENERATED_CODE_PATH が最新ではありません。手元で再生成してコミットしてください。"
+            exit 1
+          fi

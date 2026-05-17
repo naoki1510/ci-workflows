@@ -1,0 +1,43 @@
+name: "Setup pnpm and Node.js"
+description: >-
+  Set up pnpm + Node.js, restore node_modules cache, and run `pnpm install --frozen-lockfile`.
+  Caller is responsible for `actions/checkout`.
+
+inputs:
+  pnpm-version:
+    description: "pnpm major version (passed to pnpm/action-setup)"
+    required: false
+    default: "11"
+  node-version-file:
+    description: "Path to .node-version (relative to repo root)"
+    required: false
+    default: ".node-version"
+  lockfile-path:
+    description: "Path to pnpm-lock.yaml (relative to repo root)"
+    required: false
+    default: "pnpm-lock.yaml"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version-file: ${{ inputs.node-version-file }}
+        cache: pnpm
+        cache-dependency-path: ${{ inputs.lockfile-path }}
+
+    - name: Cache node_modules
+      id: node-modules-cache
+      uses: actions/cache@v4
+      with:
+        path: "**/node_modules"
+        key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
+
+    - name: Install dependencies
+      if: steps.node-modules-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile

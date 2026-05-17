@@ -1,0 +1,39 @@
+name: Rails Lint
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Rails app directory (e.g. backend, server)"
+        type: string
+        required: true
+      install-system-packages:
+        description: "Extra apt packages to install before bundling (space separated). Empty to skip."
+        type: string
+        default: ""
+
+jobs:
+  lint-and-security:
+    name: Lint & security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: naoki1510/ci-workflows/.github/actions/setup-rails@v2
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          install-system-packages: ${{ inputs.install-system-packages }}
+
+      - name: RuboCop
+        id: rubocop
+        run: bin/rubocop -f github
+
+      - name: Brakeman
+        # rubocop が fail でも brakeman は走らせて両方の結果を見たい
+        if: ${{ steps.rubocop.outcome == 'success' || steps.rubocop.outcome == 'failure' }}
+        # brakeman exit 5 = warnings あるが errors なし。CI を fail させないため許容
+        run: bin/brakeman --no-pager || [ $? -eq 5 ]

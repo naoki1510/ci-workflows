@@ -1,0 +1,33 @@
+name: "Setup Rails"
+description: >-
+  Install system packages and set up Ruby with bundler-cache.
+  Caller is responsible for `actions/checkout`. This action does NOT prepare the
+  test DB — wrap with a service container + `db:test:prepare` step in the
+  caller workflow when needed.
+
+inputs:
+  working-directory:
+    description: "Rails app directory (e.g. backend, server). Used as `bundler-cache` working directory."
+    required: true
+  install-system-packages:
+    description: "Extra apt packages to install before bundling (space separated). Empty to skip."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install system packages
+      if: inputs.install-system-packages != ''
+      shell: bash
+      env:
+        EXTRA_PACKAGES: ${{ inputs.install-system-packages }}
+      run: |
+        sudo apt-get update
+        # shellcheck disable=SC2086
+        sudo apt-get install --no-install-recommends -y $EXTRA_PACKAGES
+
+    - uses: ruby/setup-ruby@v1
+      with:
+        bundler-cache: true
+        working-directory: ${{ inputs.working-directory }}
