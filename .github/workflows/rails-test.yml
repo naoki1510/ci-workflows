@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       working-directory:
-        description: "Rails app directory (e.g. backend, server)"
+        description: "Rails app directory"
         type: string
         required: true
       db-engine:
@@ -22,15 +22,15 @@ on:
         type: string
         default: "app_test"
       test-prepare-cmd:
-        description: "Command to prepare the test database"
+        description: "Shell command string evaluated with `eval` to prepare the test DB. Caller must be trusted."
         type: string
         default: "bin/rails db:test:prepare"
       test-cmd:
-        description: "Command to run tests"
+        description: "Shell command string evaluated with `eval` to run tests. Caller must be trusted."
         type: string
         default: "bundle exec rspec"
       install-system-packages:
-        description: "Extra apt packages to install before bundling (space separated). Empty to skip."
+        description: "Space-separated apt packages to install before bundling. Empty to skip."
         type: string
         default: ""
 
@@ -82,11 +82,8 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
           install-system-packages: ${{ inputs.install-system-packages }}
 
-      # caller 由来の input を `run:` に直接展開すると workflow injection の入り口に
-      # なるため (caller が ';' 等を仕込むと任意コード実行)、env 経由で値を渡して
-      # bash 変数として参照する。任意コマンドラインを許す柔軟性を維持するため
-      # `eval` で評価する (caller は trusted、env で渡せば YAML テンプレ展開での
-      # bypass は防げる)。
+      # caller 由来のコマンド文字列は env 経由で eval。`run: ${{ inputs.* }}` 直接展開は
+      # YAML 解析時にコマンド注入されるため避ける。eval 自体は trusted caller 前提。
       - name: Prepare test DB
         env:
           TEST_PREPARE_CMD: ${{ inputs.test-prepare-cmd }}

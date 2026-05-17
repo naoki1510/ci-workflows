@@ -4,11 +4,11 @@ on:
   workflow_call:
     inputs:
       working-directory:
-        description: "Rails app directory (e.g. backend, server)"
+        description: "Rails app directory"
         type: string
         required: true
       install-system-packages:
-        description: "Extra apt packages to install before bundling (space separated). Empty to skip."
+        description: "Space-separated apt packages to install before bundling. Empty to skip."
         type: string
         default: ""
 
@@ -32,7 +32,7 @@ jobs:
         id: rubocop
         run: bin/rubocop -f github
 
-      # rubocop が fail でも brakeman は走らせて両方の結果を見たい (cancel は除く)
+      # rubocop が fail でも brakeman は走らせて両方の結果を見たい
       - name: Brakeman
         if: ${{ !cancelled() }}
         # brakeman exit 5 = warnings あるが errors なし。CI を fail させないため許容

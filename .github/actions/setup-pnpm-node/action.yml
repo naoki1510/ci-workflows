@@ -1,22 +1,19 @@
 name: "Setup pnpm and Node.js"
 description: >-
-  Set up pnpm + Node.js, restore node_modules cache, and run `pnpm install --frozen-lockfile`.
-  Caller is responsible for `actions/checkout`.
-  `pnpm install` は常に repo root で実行する想定 (pnpm workspaces 構成を前提)。
-  monorepo のサブパッケージだけを install したい場合は caller 側で `pnpm --filter`
-  を使うことを想定し、ここでは working-directory は input にしていない。
+  Set up pnpm + Node.js, restore caches, and run `pnpm install --frozen-lockfile` at repo root.
+  Caller is responsible for `actions/checkout`. pnpm workspaces 構成を前提とする。
 
 inputs:
   pnpm-version:
-    description: "pnpm major version (passed to pnpm/action-setup)"
+    description: "pnpm major version"
     required: false
     default: "11"
   node-version-file:
-    description: "Path to .node-version (relative to repo root)"
+    description: "Path to .node-version, relative to repo root"
     required: false
     default: ".node-version"
   lockfile-path:
-    description: "Path to pnpm-lock.yaml (relative to repo root)"
+    description: "Path to pnpm-lock.yaml, relative to repo root"
     required: false
     default: "pnpm-lock.yaml"
 
@@ -27,10 +24,6 @@ runs:
       with:
         version: ${{ inputs.pnpm-version }}
 
-    # `cache: pnpm` は pnpm store (~/.local/share/pnpm/store) をキャッシュする。
-    # node_modules ごとは別途 actions/cache でキャッシュし、両方 hit 時は install を
-    # スキップして高速化する (store キャッシュ単独だと install 自体は走る = 5-10 秒)。
-    # 容量と速度のトレードオフは「速度重視」で両方持つ既存方針を踏襲。
     - uses: actions/setup-node@v6
       with:
         node-version-file: ${{ inputs.node-version-file }}

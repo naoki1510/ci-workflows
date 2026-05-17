@@ -1,23 +1,18 @@
 name: Check generated code
 
-# rswag (Rails の OpenAPI 仕様生成) + @hey-api/openapi-ts (TypeScript クライアント生成)
-# を使うリポジトリで「生成物が最新であること」を CI で検証する専用 reusable workflow。
-#
-# 1 つの job で rails setup → swagger.yaml 再生成 → diff チェック → pnpm setup →
-# frontend codegen → diff チェック までを連続実行する。job を分けないのは setup
-# (ruby / pnpm) を 1 runner 内で完結させ、独立 job 化に伴うセットアップ重複を
-# 避けるため。
+# rswag + @hey-api/openapi-ts を使うリポジトリで生成物の最新性を検証する。
+# 1 job 内で rails + pnpm 両方のセットアップを使うため、独立 job 化を避けている。
 
 on:
   workflow_call:
     inputs:
-      # --- backend (Rails + rswag) ---
+      # --- backend ---
       rails-working-directory:
-        description: "Rails app directory (e.g. backend)"
+        description: "Rails app directory"
         type: string
         required: true
       install-system-packages:
-        description: "Extra apt packages for bundling (space separated)"
+        description: "Space-separated apt packages for bundling"
         type: string
         default: ""
       db-engine:
@@ -34,21 +29,21 @@ on:
         type: string
         default: "app_test"
       test-prepare-cmd:
-        description: "Test DB prepare command (swaggerize は Rails boot で DB を必要とする)"
+        description: "Shell command string evaluated with `eval` for test DB prep. Swaggerize boots Rails so DB schema is required. Caller must be trusted."
         type: string
         default: "bin/rails db:test:prepare"
       swaggerize-cmd:
-        description: "OpenAPI 仕様再生成コマンド (rails-working-directory 配下で実行)"
+        description: "Shell command string evaluated with `eval` to regenerate OpenAPI spec, run under rails-working-directory. Caller must be trusted."
         type: string
         default: "bundle exec rake rswag:specs:swaggerize"
       swagger-path:
-        description: "再生成された swagger.yaml の repo root からの相対パス (diff 対象)"
+        description: "Path to the regenerated swagger.yaml from repo root. Used as the diff target."
         type: string
         required: true
 
-      # --- frontend (pnpm + @hey-api/openapi-ts) ---
+      # --- frontend ---
       pnpm-filter:
-        description: "pnpm --filter target (e.g. frontend). Empty for monolithic packages."
+        description: "pnpm --filter target. Empty for monolithic packages."
         type: string
         default: ""
       pnpm-version:
@@ -61,11 +56,11 @@ on:
         type: string
         default: "pnpm-lock.yaml"
       codegen-script:
-        description: "frontend クライアント再生成 script 名"
+        description: "Frontend client regeneration script name. Passed as pnpm argument, not eval'd."
         type: string
         default: "codegen"
       generated-code-path:
-        description: "生成コードの repo root からの相対パス (diff 対象、ディレクトリ可)"
+        description: "Path to generated code from repo root. Directory or file, used as the diff target."
         type: string
         required: true
 
@@ -115,8 +110,7 @@ jobs:
           working-directory: ${{ inputs.rails-working-directory }}
           install-system-packages: ${{ inputs.install-system-packages }}
 
-      # caller 由来のコマンド文字列を `run:` に直接展開せず env 経由で eval する
-      # (workflow injection 対策、`rails-test.yml` と同じ運用)。
+      # caller 由来のコマンド文字列は env 経由で eval。rails-test.yml と同じ運用。
       - name: Prepare test DB
         working-directory: ${{ inputs.rails-working-directory }}
         env:
@@ -147,6 +141,13 @@ jobs:
 
       - name: Regenerate frontend API client
         env:
+          # job-level の RAILS_ENV / POSTGRES_* / MYSQL_* が frontend にも流れるのを遮断
+          RAILS_ENV: ""
+          POSTGRES_HOST: ""
+          POSTGRES_USER: ""
+          POSTGRES_PASSWORD: ""
+          MYSQL_HOST: ""
+          MYSQL_DATABASE: ""
           PNPM_FILTER: ${{ inputs.pnpm-filter }}
           CODEGEN_SCRIPT: ${{ inputs.codegen-script }}
         run: |

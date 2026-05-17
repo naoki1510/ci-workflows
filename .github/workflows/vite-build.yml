@@ -4,27 +4,30 @@ on:
   workflow_call:
     inputs:
       pnpm-filter:
-        description: "pnpm --filter target (e.g. frontend). Empty for monolithic packages."
+        description: "pnpm --filter target. Empty for monolithic packages."
         type: string
         default: ""
       pnpm-version:
         type: string
         default: "11"
       node-version-file:
-        description: "Path to .node-version (relative to repo root)"
+        description: "Path to .node-version, relative to repo root"
         type: string
         default: ".node-version"
       lockfile-path:
-        description: "Path to pnpm-lock.yaml (relative to repo root)"
+        description: "Path to pnpm-lock.yaml, relative to repo root"
         type: string
         default: "pnpm-lock.yaml"
       typecheck-script:
+        description: "pnpm script name for typecheck"
         type: string
         default: "typecheck"
       test-script:
+        description: "pnpm script name for unit tests"
         type: string
         default: "test"
       build-script:
+        description: "pnpm script name for production build"
         type: string
         default: "build"
 
@@ -42,8 +45,6 @@ jobs:
           node-version-file: ${{ inputs.node-version-file }}
           lockfile-path: ${{ inputs.lockfile-path }}
 
-      # caller の input は env 経由でシェル変数として参照する (workflow injection 対策、
-      # `vite-lint.yml` と同じ運用)。pnpm の引数として渡されるので shell 評価を経由しない。
       - name: Typecheck
         env:
           PNPM_FILTER: ${{ inputs.pnpm-filter }}

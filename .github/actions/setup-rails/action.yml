@@ -1,16 +1,14 @@
 name: "Setup Rails"
 description: >-
   Install system packages and set up Ruby with bundler-cache.
-  Caller is responsible for `actions/checkout`. This action does NOT prepare the
-  test DB — wrap with a service container + `db:test:prepare` step in the
-  caller workflow when needed.
+  Caller must run `actions/checkout` first.
 
 inputs:
   working-directory:
-    description: "Rails app directory (e.g. backend, server). Used as `bundler-cache` working directory."
+    description: "Rails app directory. Used as `bundler-cache` working directory."
     required: true
   install-system-packages:
-    description: "Extra apt packages to install before bundling (space separated). Empty to skip."
+    description: "Space-separated apt packages to install before bundling. Empty to skip."
     required: false
     default: ""
 
@@ -24,9 +22,7 @@ runs:
         EXTRA_PACKAGES: ${{ inputs.install-system-packages }}
       run: |
         sudo apt-get update
-        # space-separated 文字列を配列化してから apt-get に渡す。
-        # `$EXTRA_PACKAGES` のクォートなし展開を避け、glob 展開・word-splitting の
-        # 意図しない挙動を防ぐ (例: パッケージ名に `*` が混入した場合の事故予防)。
+        # 配列化してから apt-get に渡し、glob 展開 / word-splitting の事故を防ぐ
         read -ra PACKAGES <<< "$EXTRA_PACKAGES"
         sudo apt-get install --no-install-recommends -y "${PACKAGES[@]}"
 

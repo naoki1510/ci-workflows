@@ -4,24 +4,26 @@ on:
   workflow_call:
     inputs:
       pnpm-filter:
-        description: "pnpm --filter target (e.g. frontend). Empty for monolithic packages."
+        description: "pnpm --filter target. Empty for monolithic packages."
         type: string
         default: ""
       pnpm-version:
         type: string
         default: "11"
       node-version-file:
-        description: "Path to .node-version (relative to repo root)"
+        description: "Path to .node-version, relative to repo root"
         type: string
         default: ".node-version"
       lockfile-path:
-        description: "Path to pnpm-lock.yaml (relative to repo root)"
+        description: "Path to pnpm-lock.yaml, relative to repo root"
         type: string
         default: "pnpm-lock.yaml"
       lint-script:
+        description: "pnpm script name for ESLint"
         type: string
         default: "lint"
       format-check-script:
+        description: "pnpm script name for Prettier check"
         type: string
         default: "format:check"
 
@@ -39,9 +41,6 @@ jobs:
           node-version-file: ${{ inputs.node-version-file }}
           lockfile-path: ${{ inputs.lockfile-path }}
 
-      # caller の input を `run:` に直接展開せず env 経由でシェル変数として参照する
-      # (workflow injection 対策)。値は pnpm の引数として渡され、shell の評価は経由しない
-      # ため metacharacter が混入しても安全。
       - name: ESLint
         id: eslint
         env:
@@ -54,6 +53,7 @@ jobs:
             pnpm run "$LINT_SCRIPT"
           fi
 
+      # eslint が fail でも prettier は走らせて両方の結果を見たい
       - name: Prettier check
         if: ${{ !cancelled() }}
         env:
