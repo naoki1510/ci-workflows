@@ -1,0 +1,35 @@
+name: "Rails Test"
+description: >-
+  Prepare test DB and run RSpec. Caller must run `setup-rails` first and provide a DB service container.
+
+inputs:
+  working-directory:
+    description: "Rails app directory"
+    required: false
+    default: "."
+  test-prepare-cmd:
+    description: "Shell command string evaluated with `eval` for test DB prep. Caller must be trusted."
+    required: false
+    default: "bin/rails db:test:prepare"
+  test-cmd:
+    description: "Shell command string evaluated with `eval` to run tests. Caller must be trusted."
+    required: false
+    default: "bundle exec rspec"
+
+runs:
+  using: "composite"
+  steps:
+    # caller 由来のコマンド文字列は env 経由で eval。直接展開は YAML 解析時に注入される
+    - name: Prepare test DB
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        TEST_PREPARE_CMD: ${{ inputs.test-prepare-cmd }}
+      run: eval "$TEST_PREPARE_CMD"
+
+    - name: Run tests
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        TEST_CMD: ${{ inputs.test-cmd }}
+      run: eval "$TEST_CMD"

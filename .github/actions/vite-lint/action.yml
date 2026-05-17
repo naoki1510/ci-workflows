@@ -1,0 +1,47 @@
+name: "Vite Lint"
+description: >-
+  Run ESLint then Prettier check. Prettier runs even if ESLint fails (only skipped on cancel).
+  Caller must run `setup-pnpm-node` first.
+
+inputs:
+  pnpm-filter:
+    description: "pnpm --filter target. Empty for monolithic packages."
+    required: false
+    default: ""
+  lint-script:
+    description: "pnpm script name for ESLint"
+    required: false
+    default: "lint"
+  format-check-script:
+    description: "pnpm script name for Prettier check"
+    required: false
+    default: "format:check"
+
+runs:
+  using: "composite"
+  steps:
+    - name: ESLint
+      shell: bash
+      env:
+        PNPM_FILTER: ${{ inputs.pnpm-filter }}
+        LINT_SCRIPT: ${{ inputs.lint-script }}
+      run: |
+        if [ -n "$PNPM_FILTER" ]; then
+          pnpm --filter "$PNPM_FILTER" run "$LINT_SCRIPT"
+        else
+          pnpm run "$LINT_SCRIPT"
+        fi
+
+    # eslint が fail でも prettier は走らせて両方の結果を見たい
+    - name: Prettier check
+      if: ${{ !cancelled() }}
+      shell: bash
+      env:
+        PNPM_FILTER: ${{ inputs.pnpm-filter }}
+        FORMAT_CHECK_SCRIPT: ${{ inputs.format-check-script }}
+      run: |
+        if [ -n "$PNPM_FILTER" ]; then
+          pnpm --filter "$PNPM_FILTER" run "$FORMAT_CHECK_SCRIPT"
+        else
+          pnpm run "$FORMAT_CHECK_SCRIPT"
+        fi

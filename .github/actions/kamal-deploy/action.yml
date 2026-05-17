@@ -1,0 +1,82 @@
+name: "Kamal Deploy"
+description: >-
+  Configure SSH, optionally set up Docker Buildx, and run `bin/kamal deploy`.
+  Caller must run `actions/checkout` first and set `env:` for any vars kamal needs (RAILS_MASTER_KEY, etc.).
+
+inputs:
+  working-directory:
+    description: "Rails app directory containing config/deploy.yml"
+    required: true
+  ssh-private-key:
+    description: "Private SSH key written to ~/.ssh/id_ed25519"
+    required: true
+  ssh-known-hosts:
+    description: "Pre-shared known_hosts entries appended to ~/.ssh/known_hosts"
+    required: false
+    default: ""
+  buildx:
+    description: "Set up Docker buildx for multi-arch builds"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: ruby/setup-ruby@v1
+      with:
+        bundler-cache: true
+        working-directory: ${{ inputs.working-directory }}
+
+    - if: ${{ inputs.buildx == 'true' }}
+      uses: docker/setup-buildx-action@v4
+
+    - name: Configure SSH
+      shell: bash
+      env:
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+        SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        if [ -n "$SSH_KNOWN_HOSTS" ]; then
+          # 追記前の状態 (存在 / 行数) を覚えておき、cleanup で正確に元に戻す
+          kh=~/.ssh/known_hosts
+          if [ -f "$kh" ]; then
+            # BSD/GNU wc 両対応で前後の空白を落とす
+            pre=$(wc -l < "$kh" | tr -d '[:space:]')
+            existed=1
+          else
+            pre=0
+            existed=0
+          fi
+          printf '%s\n' "$SSH_KNOWN_HOSTS" >> "$kh"
+          chmod 644 "$kh"
+          {
+            echo "KAMAL_DEPLOY_KNOWN_HOSTS_PRE_LINES=$pre"
+            echo "KAMAL_DEPLOY_KNOWN_HOSTS_EXISTED=$existed"
+          } >> "$GITHUB_ENV"
+        fi
+
+    - name: Deploy with Kamal
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: bin/kamal deploy
+
+    # self-hosted runner の job 終了後も残るので、書き込んだものは消す / 元に戻す
+    - name: Cleanup SSH artifacts
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        rm -f ~/.ssh/id_ed25519
+        kh=~/.ssh/known_hosts
+        pre="${KAMAL_DEPLOY_KNOWN_HOSTS_PRE_LINES:-}"
+        existed="${KAMAL_DEPLOY_KNOWN_HOSTS_EXISTED:-}"
+        if [ -n "$pre" ] && [ -f "$kh" ]; then
+          if [ "$existed" = "0" ]; then
+            rm -f "$kh"
+          else
+            head -n "$pre" "$kh" > "$kh.tmp" && mv "$kh.tmp" "$kh"
+          fi
+        fi

@@ -1,67 +1,58 @@
 # ci-workflows
 
-Reusable GitHub Actions workflows + composite actions shared across naoki1510 projects.
+Reusable GitHub Actions composite actions shared across naoki1510 projects.
 
-## Two layers of reuse
-
-| Layer | Where | Use case |
-|---|---|---|
-| **Composite actions** (`.github/actions/`) | run in the **caller's** runner | setup を共有しつつ caller 側 job に自由に step を足したい時 |
-| **Reusable workflows** (`.github/workflows/`) | each call spins up its **own** runner | 完成された job を丸ごと取り込みたい時 (lint / test / build 等) |
-
-caller 側で「rspec の後ろに独自 step を足す」のような自由な組み合わせが必要なら **composite action**、`uses:` 一発で job 1 個分のお膳立てが欲しいなら **reusable workflow** を使う。
+v2 は composite action 100% 構成。複数 step を 1 つの runner 内で連続実行できるので setup の重複が無く、caller が job 構造を自由に組み立てられる。
 
 ## Versioning
 
-- **`v2`** (current) — job 単位の reusable workflow に分割 + composite action でセットアップ共通化。後述。
-- **`v1`** (legacy) — `rails-ci.yml` / `vite-ci.yml` で 2 job バンドル。`v2` の `rails-lint` + `rails-test` 等に分割された。caller の移行が完了するまで `v1` も維持する。
-- `v1` の互換更新は force-push で `v1` を更新する。breaking change は次のメジャーへ bump。
+- **`v2`** (current) — composite action 100%。reusable workflow は無し。
+- **`v1`** (legacy) — `rails-ci.yml` / `vite-ci.yml` / `kamal-deploy.yml` の reusable workflow セット。タグとして残しているので既存 caller は `@v1` でそのまま動く。新規 caller は v2 を使う。
+- 互換更新は対応する `vN` tag を force-push。breaking change は新メジャー bump。
 - 厳密にピン留めするなら commit SHA を使う。
 
-## Available composite actions (v2)
+## Available composite actions
 
-| Action | Purpose |
+### Setup
+
+| Action | 内容 |
 |---|---|
-| [`actions/setup-rails`](.github/actions/setup-rails/action.yml) | System packages (optional) + `ruby/setup-ruby` (bundler-cache 有効)。caller は事前に `actions/checkout` する必要あり。DB は含まない (caller の job 側で service container を立てる) |
-| [`actions/setup-pnpm-node`](.github/actions/setup-pnpm-node/action.yml) | `pnpm/action-setup` + `actions/setup-node` (pnpm キャッシュ) + node_modules キャッシュ + `pnpm install --frozen-lockfile` |
+| [`actions/setup-rails`](.github/actions/setup-rails/action.yml) | system packages (任意) + Ruby + bundler-cache |
+| [`actions/setup-pnpm-node`](.github/actions/setup-pnpm-node/action.yml) | pnpm + Node + 各キャッシュ + `pnpm install --frozen-lockfile` |
 
-## Available reusable workflows
+### Rails
 
-### v2 (job 単位)
-
-| Workflow | Job 構成 |
+| Action | 内容 |
 |---|---|
-| [`rails-lint.yml`](.github/workflows/rails-lint.yml) | RuboCop + Brakeman |
-| [`rails-test.yml`](.github/workflows/rails-test.yml) | RSpec (postgres / mysql service container 切替) |
-| [`vite-lint.yml`](.github/workflows/vite-lint.yml) | ESLint + Prettier |
-| [`vite-build.yml`](.github/workflows/vite-build.yml) | Typecheck + Vitest + Vite build |
-| [`check-generated-code.yml`](.github/workflows/check-generated-code.yml) | rswag swaggerize + hey-api codegen の最新性検証 (rails + rspec + @hey-api/openapi-ts 専用) |
+| [`actions/rails-lint`](.github/actions/rails-lint/action.yml) | RuboCop → Brakeman (rubocop fail でも brakeman は走る) |
+| [`actions/rails-test`](.github/actions/rails-test/action.yml) | `db:test:prepare` → RSpec (caller が DB service container を提供) |
+| [`actions/check-swagger`](.github/actions/check-swagger/action.yml) | rswag で swagger.yaml 再生成 → `git diff --exit-code` で最新性検証 |
 
-### v1 (legacy, 2 job バンドル)
+### Frontend (pnpm)
 
-| Workflow | Purpose |
+| Action | 内容 |
 |---|---|
-| [`rails-ci.yml`](.github/workflows/rails-ci.yml) | `rails-lint` + `rails-test` を 1 workflow に同梱 |
-| [`vite-ci.yml`](.github/workflows/vite-ci.yml) | `vite-lint` + `vite-build` を 1 workflow に同梱 |
+| [`actions/vite-lint`](.github/actions/vite-lint/action.yml) | ESLint → Prettier check (eslint fail でも prettier は走る) |
+| [`actions/vite-build`](.github/actions/vite-build/action.yml) | typecheck → test → build |
+| [`actions/check-codegen`](.github/actions/check-codegen/action.yml) | frontend client (例: @hey-api/openapi-ts) を再生成 → `git diff --exit-code` で最新性検証 |
 
-### 共通
+### Deploy
 
-| Workflow | Purpose |
+| Action | 内容 |
 |---|---|
-| [`kamal-deploy.yml`](.github/workflows/kamal-deploy.yml) | Deploy a Rails app to a VPS via Kamal |
+| [`actions/kamal-deploy`](.github/actions/kamal-deploy/action.yml) | SSH 設定 + (任意) Docker buildx + `bin/kamal deploy` 実行 |
 
-## Conventions enforced by these workflows
+## Conventions
 
-- Ruby version is auto-detected by `ruby/setup-ruby` from `.ruby-version` / `.tool-versions` / `mise.toml` under the working directory.
-- Node version is read from `.node-version` at the repo root.
-- Frontend uses **pnpm** (no npm support — npm-based projects must migrate first).
-- Action versions: `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v4`, `ruby/setup-ruby@v1`, `docker/setup-buildx-action@v4`.
-- `rails-test.yml` / `check-generated-code.yml` の service container は `db-engine` に応じて未使用側の image が空文字列になる。GitHub Actions runner は空 image のコンテナをスキップする (undocumented だが実動作で確認済み)。将来 runner の挙動が変わった場合は db-engine 別の workflow 分割を検討する。
-- `rails-test.yml` / `check-generated-code.yml` の `*-cmd` 系 input (`test-cmd`, `test-prepare-cmd`, `swaggerize-cmd` 等) はシェルコマンド文字列を受け、env 経由で `eval` する。caller は信頼できる前提だが、untrusted な caller を想定する場合はコマンド固定 + 引数 input への refactor が必要。
+- Ruby version は `ruby/setup-ruby` が `.ruby-version` / `.tool-versions` / `mise.toml` から自動検出
+- Node version は repo root の `.node-version` から読む
+- Frontend は **pnpm** 前提 (npm は未対応)
+- Action versions: `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v4`, `ruby/setup-ruby@v1`, `docker/setup-buildx-action@v4`
+- `actions/rails-test` / `actions/check-swagger` の `*-cmd` 系 input はシェルコマンド文字列を `eval` する。caller が trusted な前提
+- DB service container は caller の job 側で定義する (composite action は service を持てない)
+- `actions/kamal-deploy` 等で kamal に環境変数を渡したいときは、caller の **job-level** `env:` ブロックに書く (composite 内に env 転送機構は無く、step-level env の伝播は保証されない)
 
-## Recommended caller settings
-
-caller 側で `concurrency` を設定すると、同じブランチへの連続 push で古い run が自動キャンセルされ、CI 時間とコストを削減できる。
+## Caller settings (推奨)
 
 ```yaml
 concurrency:
@@ -69,9 +60,11 @@ concurrency:
   cancel-in-progress: true
 ```
 
-## Usage (v2)
+同じブランチへの連続 push で古い run が自動キャンセルされ、CI 時間とコストを削減できる。
 
-### Rails (lint + test を別 job として呼ぶ)
+## Usage
+
+### Rails + frontend を 2 job で完結させる例
 
 ```yaml
 # .github/workflows/ci.yml
@@ -79,74 +72,25 @@ name: CI
 on: [pull_request]
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  rails-lint:
-    uses: naoki1510/ci-workflows/.github/workflows/rails-lint.yml@v2
-    with:
-      working-directory: backend
-      install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
-
-  rails-test:
-    uses: naoki1510/ci-workflows/.github/workflows/rails-test.yml@v2
-    with:
-      working-directory: backend
-      db-engine: postgres
-      install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
-```
-
-### Vite (lint + build を別 job として呼ぶ)
-
-```yaml
-jobs:
-  vite-lint:
-    uses: naoki1510/ci-workflows/.github/workflows/vite-lint.yml@v2
-    with:
-      pnpm-filter: frontend
-
-  vite-build:
-    uses: naoki1510/ci-workflows/.github/workflows/vite-build.yml@v2
-    with:
-      pnpm-filter: frontend
-```
-
-### Check generated code (rails + rspec + hey-api 専用)
-
-`rswag` で `swagger.yaml` を生成し、`@hey-api/openapi-ts` で TypeScript クライアントを生成しているリポジトリ向け。1 job 内で連続実行することで、ruby setup と pnpm setup の重複を避けて runner cost を抑える。
-
-```yaml
-jobs:
-  check-generated-code:
-    uses: naoki1510/ci-workflows/.github/workflows/check-generated-code.yml@v2
-    with:
-      rails-working-directory: backend
-      install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
-      db-engine: postgres
-      swagger-path: backend/swagger/v1/swagger.yaml
-      pnpm-filter: frontend
-      generated-code-path: frontend/src/lib/api/generated/
-```
-
-### 独自 job で composite action を使う (setup を共有して step を自由に追加)
-
-reusable workflow では足りない処理を caller の独自 job で書くケース。`setup-rails` / `setup-pnpm-node` を呼べば既存 reusable workflow と同じ setup を使い回せる。
-
-```yaml
-jobs:
-  custom-rails-task:
+  rails:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     services:
       postgres:
         image: postgres:17
-        env: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres }
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=5
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     env:
       RAILS_ENV: test
       POSTGRES_HOST: localhost
@@ -158,48 +102,73 @@ jobs:
         with:
           working-directory: backend
           install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
-      - run: bin/rails db:test:prepare
-      - run: bundle exec rake my:custom:task
+      - uses: naoki1510/ci-workflows/.github/actions/rails-lint@v2
+        with: { working-directory: backend }
+      - uses: naoki1510/ci-workflows/.github/actions/rails-test@v2
+        with: { working-directory: backend }
+      - uses: naoki1510/ci-workflows/.github/actions/check-swagger@v2
+        with:
+          working-directory: backend
+          swagger-path: backend/swagger/v1/swagger.yaml
+
+  vite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: naoki1510/ci-workflows/.github/actions/setup-pnpm-node@v2
+      - uses: naoki1510/ci-workflows/.github/actions/vite-lint@v2
+        with: { pnpm-filter: frontend }
+      - uses: naoki1510/ci-workflows/.github/actions/vite-build@v2
+        with: { pnpm-filter: frontend }
+      - uses: naoki1510/ci-workflows/.github/actions/check-codegen@v2
+        with:
+          pnpm-filter: frontend
+          generated-code-path: frontend/src/lib/api/generated/
 ```
 
-## Usage (v1, legacy)
+2 runners (rails, vite) のみ。各 setup は 1 回ずつ。
 
-### Rails CI (PostgreSQL example)
-
-```yaml
-jobs:
-  rails:
-    uses: naoki1510/ci-workflows/.github/workflows/rails-ci.yml@v1
-    with:
-      working-directory: backend
-      db-engine: postgres
-      install-system-packages: build-essential git libpq-dev libyaml-dev pkg-config
-```
-
-### Rails CI (MySQL example)
-
-```yaml
-jobs:
-  rails:
-    uses: naoki1510/ci-workflows/.github/workflows/rails-ci.yml@v1
-    with:
-      working-directory: backend
-      db-engine: mysql
-      mysql-database: app_test
-      test-prepare-cmd: |
-        bundle exec rails db:create
-        bundle exec rails db:schema:load
-```
-
-### Vite CI
+### Frontend のみのリポジトリ
 
 ```yaml
 jobs:
   vite:
-    uses: naoki1510/ci-workflows/.github/workflows/vite-ci.yml@v1
-    with:
-      pnpm-filter: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: naoki1510/ci-workflows/.github/actions/setup-pnpm-node@v2
+      - uses: naoki1510/ci-workflows/.github/actions/vite-lint@v2
+      - uses: naoki1510/ci-workflows/.github/actions/vite-build@v2
 ```
+
+### lint と test を別 job に分けたい場合
+
+並列実行や Required Status Check の粒度を細かくしたい場合、caller 側で job を分ければよい。
+
+```yaml
+jobs:
+  rails-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: naoki1510/ci-workflows/.github/actions/setup-rails@v2
+        with: { working-directory: backend, install-system-packages: ... }
+      - uses: naoki1510/ci-workflows/.github/actions/rails-lint@v2
+        with: { working-directory: backend }
+
+  rails-test:
+    runs-on: ubuntu-latest
+    services: { postgres: ... }
+    env: { RAILS_ENV: test, ... }
+    steps:
+      - uses: actions/checkout@v6
+      - uses: naoki1510/ci-workflows/.github/actions/setup-rails@v2
+        with: { working-directory: backend, install-system-packages: ... }
+      - uses: naoki1510/ci-workflows/.github/actions/rails-test@v2
+        with: { working-directory: backend }
+```
+
+job を分けると setup-rails は別 runner で 2 回走るが、bundler-cache のおかげで 2 回目は早い。
 
 ### Kamal deploy
 
@@ -215,15 +184,18 @@ on:
 
 jobs:
   deploy:
-    uses: naoki1510/ci-workflows/.github/workflows/kamal-deploy.yml@v1
-    with:
-      working-directory: backend
-    secrets:
-      ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
-      ssh-known-hosts: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
-      env-vars: |
-        RAILS_MASTER_KEY=${{ secrets.RAILS_MASTER_KEY }}
-        DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+    runs-on: ubuntu-latest
+    # kamal 実行時に必要な env は job-level で定義 (composite 内の step に確実に伝播する)
+    env:
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: naoki1510/ci-workflows/.github/actions/kamal-deploy@v2
+        with:
+          working-directory: backend
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+          ssh-known-hosts: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
 ```
 
-`env-vars` の各行は `KEY=value` 形式。`#` で始まる行と空行は無視される。caller 側で `${{ secrets.* }}` を expression として展開する形なので、reusable workflow 側で個別 secret を宣言する必要がない。
+env は job-level の `env:` ブロックに書く。job 内の全 step に伝播するため、composite 内の `bin/kamal deploy` も同じ env を受け取る。v1 にあった `env-vars` (マルチライン KEY=value を `GITHUB_ENV` に転送する仕組み) は廃止。env injection の入り口を構造的に塞いだ。
