@@ -5,9 +5,9 @@ description: >-
 
 inputs:
   pnpm-version:
-    description: "pnpm major version"
+    description: "pnpm version. Empty to use the packageManager field in package.json"
     required: false
-    default: "11"
+    default: ""
   node-version-file:
     description: "Path to .node-version, relative to repo root"
     required: false
@@ -21,8 +21,17 @@ runs:
   using: "composite"
   steps:
     - uses: pnpm/action-setup@v4
+      if: inputs.pnpm-version != ''
       with:
         version: ${{ inputs.pnpm-version }}
+
+    - uses: pnpm/action-setup@v4
+      if: inputs.pnpm-version == ''
+
+    - name: Get pnpm version
+      id: pnpm-version
+      shell: bash
+      run: echo "version=$(pnpm --version)" >> "$GITHUB_OUTPUT"
 
     - uses: actions/setup-node@v6
       with:
@@ -35,7 +44,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: "**/node_modules"
-        key: node-modules-${{ runner.os }}-pnpm${{ inputs.pnpm-version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
+        key: node-modules-${{ runner.os }}-pnpm${{ steps.pnpm-version.outputs.version }}-${{ hashFiles(inputs.node-version-file, inputs.lockfile-path) }}
 
     - name: Install dependencies
       if: steps.node-modules-cache.outputs.cache-hit != 'true'
