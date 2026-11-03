@@ -46,6 +46,7 @@ v2 は composite action 100% 構成。複数 step を 1 つの runner 内で連�
 
 - Ruby version は `ruby/setup-ruby` が `.ruby-version` / `.tool-versions` / `mise.toml` から自動検出
 - Node version は repo root の `.node-version` から読む
+- pnpm version は repo root の `package.json` の `packageManager` から読む。`packageManager` が無い repo は `setup-pnpm-node` の `pnpm-version` input で指定する
 - Frontend は **pnpm** 前提 (npm は未対応)
 - Action versions: `actions/checkout@v6`, `actions/setup-node@v6`, `pnpm/action-setup@v4`, `ruby/setup-ruby@v1`, `docker/setup-buildx-action@v4`
 - `actions/rails-test` / `actions/check-swagger` の `*-cmd` 系 input はシェルコマンド文字列を `eval` する。caller が trusted な前提
